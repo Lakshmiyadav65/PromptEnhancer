@@ -7,8 +7,12 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 #[cfg(not(target_os = "windows"))]
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 
+// Non-Windows fallback when we can't poll for modifier release.
+#[cfg(not(target_os = "windows"))]
 const KEY_RELEASE_SETTLE_MS: u64 = 250;
+#[cfg(target_os = "windows")]
 const KEY_RELEASE_MAX_WAIT_MS: u64 = 1500;
+#[cfg(target_os = "windows")]
 const KEY_RELEASE_POLL_MS: u64 = 20;
 const CLIPBOARD_SETTLE_MS: u64 = 120;
 
@@ -113,10 +117,7 @@ fn send_paste() -> Result<()> {
 #[cfg(target_os = "windows")]
 fn raw_ctrl_letter(letter: u8, log_tag: &str) -> Result<()> {
     use windows::Win32::Foundation::GetLastError;
-    use windows::Win32::UI::Input::KeyboardAndMouse::{
-        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
-        VIRTUAL_KEY, VK_CONTROL,
-    };
+    use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, VIRTUAL_KEY, VK_CONTROL};
 
     let vk_letter = VIRTUAL_KEY(letter as u16);
     let inputs = [
