@@ -96,7 +96,7 @@ pub async fn enhance_prompt<R: Runtime>(app: &AppHandle<R>, input: &str) -> Resu
         .ok_or_else(|| anyhow!("Groq response had no text content"))
 }
 
-fn load_api_key() -> Result<String> {
+pub(crate) fn load_api_key() -> Result<String> {
     // Prefer env var (read from shell or loaded from .env at startup).
     if let Ok(key) = std::env::var(ENV_VAR) {
         let trimmed = key.trim();

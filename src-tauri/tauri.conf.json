@@ -33,6 +33,17 @@
         "visible": false,
         "focus": false,
         "shadow": false
+      },
+      {
+        "label": "settings",
+        "url": "index.html#/settings",
+        "title": "PromptForge Settings",
+        "width": 540,
+        "height": 480,
+        "resizable": false,
+        "visible": false,
+        "center": true,
+        "decorations": true
       }
     ],
     "security": {

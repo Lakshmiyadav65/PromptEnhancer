@@ -8,10 +8,9 @@ use crate::{clipboard, enhance, status_window};
 
 pub const DEFAULT_HOTKEY: &str = "CommandOrControl+Alt+E";
 
-pub fn register<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let shortcut = Shortcut::from_str(DEFAULT_HOTKEY).map_err(|e| {
-        tauri::Error::Anyhow(anyhow::anyhow!("invalid hotkey {DEFAULT_HOTKEY:?}: {e}"))
-    })?;
+pub fn register<R: Runtime>(app: &AppHandle<R>, combo: &str) -> tauri::Result<()> {
+    let shortcut = Shortcut::from_str(combo)
+        .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!("invalid hotkey {combo:?}: {e}")))?;
 
     app.global_shortcut()
         .on_shortcut(shortcut, |app_handle, _shortcut, event| {
@@ -22,7 +21,6 @@ pub fn register<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             let app = app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 let result = run_enhancement_pipeline(&app).await;
-                // Always hide the status window when the pipeline ends, success or fail.
                 let _ = status_window::hide(&app);
                 if let Err(e) = result {
                     println!("[pipeline] failed: {e:#}");
@@ -31,8 +29,14 @@ pub fn register<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         })
         .map_err(|e| tauri::Error::Anyhow(anyhow::anyhow!("failed to register hotkey: {e}")))?;
 
-    println!("[hotkey] registered: {DEFAULT_HOTKEY}");
+    println!("[hotkey] registered: {combo}");
     Ok(())
+}
+
+pub fn reregister<R: Runtime>(app: &AppHandle<R>, combo: &str) -> Result<()> {
+    // Clear any previously registered shortcuts first; we only ever register one.
+    let _ = app.global_shortcut().unregister_all();
+    register(app, combo).map_err(|e| anyhow!("{e}"))
 }
 
 async fn run_enhancement_pipeline<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
@@ -46,9 +50,6 @@ async fn run_enhancement_pipeline<R: Runtime>(app: &AppHandle<R>) -> Result<()> 
         return Err(anyhow!("captured selection is empty"));
     }
 
-    // Show the status indicator while the API call is in flight. We deliberately
-    // show it AFTER capture so the synthetic Ctrl+C lands cleanly on the user's
-    // app — showing the window before could (in some Tauri versions) shift focus.
     if let Err(e) = status_window::show_near_cursor(app) {
         println!("[status] could not show indicator: {e}");
     }

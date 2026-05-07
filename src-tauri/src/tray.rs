@@ -21,10 +21,12 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "settings" => {
-                println!("[tray] Settings clicked (window comes in Phase 6)");
-                if let Some(window) = app.get_webview_window("main") {
+                println!("[tray] Settings clicked");
+                if let Some(window) = app.get_webview_window("settings") {
                     let _ = window.show();
                     let _ = window.set_focus();
+                } else {
+                    println!("[tray] settings window not found");
                 }
             }
             "quit" => {
