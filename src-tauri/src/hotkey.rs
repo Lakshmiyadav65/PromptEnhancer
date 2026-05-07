@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-use crate::{clipboard, enhance};
+use crate::{clipboard, enhance, status_window};
 
 pub const DEFAULT_HOTKEY: &str = "CommandOrControl+Alt+E";
 
@@ -21,7 +21,10 @@ pub fn register<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             println!("[hotkey] pressed");
             let app = app_handle.clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = run_enhancement_pipeline(&app).await {
+                let result = run_enhancement_pipeline(&app).await;
+                // Always hide the status window when the pipeline ends, success or fail.
+                let _ = status_window::hide(&app);
+                if let Err(e) = result {
                     println!("[pipeline] failed: {e:#}");
                 }
             });
@@ -41,6 +44,13 @@ async fn run_enhancement_pipeline<R: Runtime>(app: &AppHandle<R>) -> Result<()> 
 
     if input.trim().is_empty() {
         return Err(anyhow!("captured selection is empty"));
+    }
+
+    // Show the status indicator while the API call is in flight. We deliberately
+    // show it AFTER capture so the synthetic Ctrl+C lands cleanly on the user's
+    // app — showing the window before could (in some Tauri versions) shift focus.
+    if let Err(e) = status_window::show_near_cursor(app) {
+        println!("[status] could not show indicator: {e}");
     }
 
     let enhanced = enhance::enhance_prompt(app, &input)

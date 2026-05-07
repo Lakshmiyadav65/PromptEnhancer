@@ -1,12 +1,11 @@
 mod clipboard;
 mod enhance;
 mod hotkey;
+mod status_window;
 mod tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Load .env from project root (or any ancestor of the cwd) before reading env vars.
-    // Failure is non-fatal — env vars set in the shell still work.
     if let Ok(path) = dotenvy::dotenv() {
         println!("[env] loaded {}", path.display());
     }

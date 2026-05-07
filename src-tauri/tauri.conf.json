@@ -18,6 +18,21 @@
         "height": 300,
         "visible": false,
         "skipTaskbar": true
+      },
+      {
+        "label": "status",
+        "url": "index.html#/status",
+        "title": "PromptForge Status",
+        "width": 220,
+        "height": 70,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "visible": false,
+        "focus": false,
+        "shadow": false
       }
     ],
     "security": {

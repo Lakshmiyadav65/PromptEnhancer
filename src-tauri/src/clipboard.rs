@@ -67,9 +67,9 @@ pub async fn capture_selection<R: Runtime>(app: &AppHandle<R>) -> Result<String>
         }
     );
 
-    if let Some(orig) = original.as_ref() {
-        let _ = clipboard.write_text(orig.clone());
-    }
+    // Restore the clipboard. If there was no readable original, write an empty
+    // string so we don't leave our sentinel behind for the next press.
+    let _ = clipboard.write_text(original.unwrap_or_default());
 
     match after {
         Some(text) if text == sentinel => Err(anyhow!(
@@ -102,16 +102,16 @@ pub async fn replace_selection<R: Runtime>(app: &AppHandle<R>, new_text: &str) -
 // ---------------------------------------------------------------------------
 #[cfg(target_os = "windows")]
 fn send_copy() -> Result<()> {
-    raw_ctrl_letter(b'C')
+    raw_ctrl_letter(b'C', "capture")
 }
 
 #[cfg(target_os = "windows")]
 fn send_paste() -> Result<()> {
-    raw_ctrl_letter(b'V')
+    raw_ctrl_letter(b'V', "replace")
 }
 
 #[cfg(target_os = "windows")]
-fn raw_ctrl_letter(letter: u8) -> Result<()> {
+fn raw_ctrl_letter(letter: u8, log_tag: &str) -> Result<()> {
     use windows::Win32::Foundation::GetLastError;
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
@@ -136,7 +136,7 @@ fn raw_ctrl_letter(letter: u8) -> Result<()> {
             last
         ));
     }
-    println!("[capture]   SendInput delivered {} events successfully", sent);
+    println!("[{log_tag}]   SendInput delivered {} events successfully", sent);
     Ok(())
 }
 
