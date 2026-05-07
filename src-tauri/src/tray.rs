@@ -1,0 +1,44 @@
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager, Runtime,
+};
+
+pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit PromptForge", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&settings_item, &quit_item])?;
+
+    let icon = app
+        .default_window_icon()
+        .cloned()
+        .ok_or_else(|| tauri::Error::AssetNotFound("default window icon".into()))?;
+
+    TrayIconBuilder::with_id("main-tray")
+        .icon(icon)
+        .tooltip("PromptForge")
+        .menu(&menu)
+        .show_menu_on_left_click(true)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "settings" => {
+                println!("[tray] Settings clicked (window comes in Phase 6)");
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+            "quit" => {
+                println!("[tray] Quit clicked");
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|_tray, event| {
+            if let TrayIconEvent::Click { .. } = event {
+                // Reserved for future use (e.g. toggle status window).
+            }
+        })
+        .build(app)?;
+
+    Ok(())
+}
