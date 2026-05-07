@@ -1,9 +1,19 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import "./Settings.css";
+
+const GROQ_KEYS_URL = "https://console.groq.com/keys";
 
 type ApiKeyStatus = { from_env: boolean; from_settings: boolean };
 type ConnectionTest = { ok: boolean; latency_ms: number; message: string };
+type UpdateInfo = {
+  current_version: string;
+  latest_version: string;
+  update_available: boolean;
+  release_url: string;
+  release_notes: string | null;
+};
 type Msg = { ok: boolean; text: string } | null;
 
 export function Settings() {
@@ -15,6 +25,8 @@ export function Settings() {
   const [hotkeyMsg, setHotkeyMsg] = useState<Msg>(null);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updateMsg, setUpdateMsg] = useState<Msg>(null);
 
   useEffect(() => {
     refresh();
@@ -79,6 +91,20 @@ export function Settings() {
     }
   }
 
+  async function checkForUpdates() {
+    setBusy("update");
+    setUpdateMsg(null);
+    setUpdateInfo(null);
+    try {
+      const info = await invoke<UpdateInfo>("check_for_updates");
+      setUpdateInfo(info);
+    } catch (e) {
+      setUpdateMsg({ ok: false, text: String(e) });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function saveHotkey() {
     setBusy("hotkey");
     setHotkeyMsg(null);
@@ -125,26 +151,41 @@ export function Settings() {
     );
   }
 
+  const noKey = !keyStatus.from_env && !keyStatus.from_settings;
+
   const keyHint = keyStatus.from_env
     ? "Currently using key from .env (env var takes precedence)"
     : keyStatus.from_settings
       ? "Currently using key from settings.json (saved via this window)"
-      : "No key configured — paste one below or set GROQ_API_KEY in .env";
+      : "No key configured yet";
 
   return (
     <div className="pf-settings">
       <h1>PromptForge Settings</h1>
 
+      {noKey && (
+        <div className="pf-welcome">
+          <h2 className="pf-welcome-title">Welcome to PromptForge 👋</h2>
+          <p className="pf-welcome-body">
+            To enhance prompts, PromptForge needs a Groq API key. It's free and
+            takes about 30 seconds to set up — sign in with Google or GitHub at
+            console.groq.com, click <strong>Create API Key</strong>, then paste
+            the key below.
+          </p>
+          <button
+            className="pf-cta"
+            onClick={() => {
+              openUrl(GROQ_KEYS_URL).catch((e) => console.error("openUrl failed:", e));
+            }}
+          >
+            Get a free Groq API key →
+          </button>
+        </div>
+      )}
+
       <section>
         <h2>Groq API Key</h2>
         <p className="pf-hint">{keyHint}</p>
-        <p className="pf-sub">
-          Get one free at{" "}
-          <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">
-            console.groq.com/keys
-          </a>
-          .
-        </p>
         <div className="pf-row">
           <input
             type="password"
@@ -207,6 +248,44 @@ export function Settings() {
           <p className={hotkeyMsg.ok ? "pf-msg pf-ok" : "pf-msg pf-err"}>
             {hotkeyMsg.text}
           </p>
+        )}
+      </section>
+
+      <section>
+        <h2>Updates</h2>
+        <p className="pf-hint">Check GitHub for a newer release.</p>
+        <div className="pf-row">
+          <button onClick={checkForUpdates} disabled={busy === "update"}>
+            {busy === "update" ? "Checking…" : "Check for updates"}
+          </button>
+        </div>
+        {updateMsg && (
+          <p className={updateMsg.ok ? "pf-msg pf-ok" : "pf-msg pf-err"}>
+            {updateMsg.text}
+          </p>
+        )}
+        {updateInfo && (
+          <div className="pf-msg" style={{ marginTop: 8 }}>
+            {updateInfo.update_available ? (
+              <span className="pf-ok">
+                Update available — v{updateInfo.latest_version} (you have v
+                {updateInfo.current_version}).{" "}
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openUrl(updateInfo.release_url).catch(console.error);
+                  }}
+                >
+                  Open release page →
+                </a>
+              </span>
+            ) : (
+              <span style={{ color: "#aaa" }}>
+                You're on the latest version (v{updateInfo.current_version}).
+              </span>
+            )}
+          </div>
         )}
       </section>
     </div>
