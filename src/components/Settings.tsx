@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./Settings.css";
 
-type ApiKeyStatus = { from_env: boolean; from_keychain: boolean };
+type ApiKeyStatus = { from_env: boolean; from_settings: boolean };
 type ConnectionTest = { ok: boolean; latency_ms: number; message: string };
 type Msg = { ok: boolean; text: string } | null;
 
@@ -38,7 +38,7 @@ export function Settings() {
     try {
       await invoke("save_api_key", { key: keyInput.trim() });
       setKeyInput("");
-      setKeyMsg({ ok: true, text: "Saved to OS keychain." });
+      setKeyMsg({ ok: true, text: "Saved to settings.json." });
       await refresh();
     } catch (e) {
       setKeyMsg({ ok: false, text: String(e) });
@@ -52,7 +52,7 @@ export function Settings() {
     setKeyMsg(null);
     try {
       await invoke("clear_api_key");
-      setKeyMsg({ ok: true, text: "Cleared from keychain." });
+      setKeyMsg({ ok: true, text: "Key cleared." });
       await refresh();
     } catch (e) {
       setKeyMsg({ ok: false, text: String(e) });
@@ -126,9 +126,9 @@ export function Settings() {
   }
 
   const keyHint = keyStatus.from_env
-    ? "Currently using key from .env (env var takes precedence over keychain)"
-    : keyStatus.from_keychain
-      ? "Currently using key from OS keychain"
+    ? "Currently using key from .env (env var takes precedence)"
+    : keyStatus.from_settings
+      ? "Currently using key from settings.json (saved via this window)"
       : "No key configured — paste one below or set GROQ_API_KEY in .env";
 
   return (
@@ -160,7 +160,7 @@ export function Settings() {
           </button>
           <button
             onClick={clearKey}
-            disabled={busy === "key" || !keyStatus.from_keychain}
+            disabled={busy === "key" || !keyStatus.from_settings}
             className="pf-secondary"
           >
             Clear

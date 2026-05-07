@@ -69,7 +69,7 @@ GROQ_API_KEY=gsk_your_key_here
 
 The `.env` file is gitignored — your key never gets committed.
 
-You can also set the key via the Settings window after launching the app — it gets stored in the OS keychain (Windows Credential Manager / macOS Keychain). The env var takes precedence over the keychain.
+You can also set the key via the Settings window after launching the app — it gets stored in `settings.json` under the app's config directory (`%APPDATA%\com.promptforge.app\` on Windows). The env var takes precedence if both are set.
 
 ### Run in dev mode
 
@@ -167,12 +167,16 @@ Open via the tray menu → **Settings**.
 - **Test Connection** — pings Groq with the active key (env or keychain). Reports round-trip latency.
 - **Global Hotkey** — click the field, press your desired combo (e.g., `Ctrl+Shift+Space`), click Save. The new shortcut is registered immediately and persisted.
 
-### Settings storage locations
+### Settings storage location
 
-- **API key:** OS keychain entry `service=PromptForge, account=groq_api_key`.
-- **Hotkey:** `%APPDATA%\com.promptforge.app\settings.json` on Windows, `~/Library/Application Support/com.promptforge.app/settings.json` on macOS.
+Both the API key and the hotkey are stored in:
 
-The `.env` file overrides the keychain for the API key.
+- **Windows:** `%APPDATA%\com.promptforge.app\settings.json`
+- **macOS:** `~/Library/Application Support/com.promptforge.app/settings.json`
+
+The file is plain JSON, only readable by the current user (standard file ACLs). Same security model as `.env`.
+
+The `.env` file overrides the saved API key when both are set — useful for development where you want the key in the project directory rather than the user-config directory.
 
 ---
 

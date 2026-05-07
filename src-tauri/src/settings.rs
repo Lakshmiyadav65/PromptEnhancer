@@ -8,20 +8,21 @@ use tauri::{AppHandle, Manager, Runtime};
 
 use crate::{enhance, hotkey};
 
-const KEYRING_SERVICE: &str = "PromptForge";
-const KEYRING_ACCOUNT: &str = "groq_api_key";
 const SETTINGS_FILE: &str = "settings.json";
 const ENV_VAR: &str = "GROQ_API_KEY";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSettings {
     pub hotkey: String,
+    #[serde(default)]
+    pub api_key: Option<String>,
 }
 
 impl Default for UserSettings {
     fn default() -> Self {
         Self {
             hotkey: hotkey::DEFAULT_HOTKEY.to_string(),
+            api_key: None,
         }
     }
 }
@@ -57,47 +58,47 @@ fn save<R: Runtime>(app: &AppHandle<R>, settings: &UserSettings) -> Result<()> {
 #[derive(Serialize)]
 pub struct ApiKeyStatus {
     pub from_env: bool,
-    pub from_keychain: bool,
+    pub from_settings: bool,
 }
 
 #[tauri::command]
-pub fn api_key_status() -> ApiKeyStatus {
+pub fn api_key_status<R: Runtime>(app: AppHandle<R>) -> ApiKeyStatus {
     let from_env = std::env::var(ENV_VAR)
         .map(|v| !v.trim().is_empty())
         .unwrap_or(false);
 
-    let from_keychain = keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
-        .ok()
-        .and_then(|e| e.get_password().ok())
-        .map(|s| !s.trim().is_empty())
+    let from_settings = load(&app)
+        .api_key
+        .as_ref()
+        .map(|k| !k.trim().is_empty())
         .unwrap_or(false);
 
-    ApiKeyStatus { from_env, from_keychain }
+    ApiKeyStatus {
+        from_env,
+        from_settings,
+    }
 }
 
 #[tauri::command]
-pub fn save_api_key(key: String) -> std::result::Result<(), String> {
+pub fn save_api_key<R: Runtime>(
+    app: AppHandle<R>,
+    key: String,
+) -> std::result::Result<(), String> {
     let trimmed = key.trim();
     if trimmed.is_empty() {
         return Err("API key cannot be empty".into());
     }
-    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
-        .map_err(|e| format!("could not access OS keychain: {e}"))?;
-    entry
-        .set_password(trimmed)
-        .map_err(|e| format!("could not save key to keychain: {e}"))?;
+    let mut settings = load(&app);
+    settings.api_key = Some(trimmed.to_string());
+    save(&app, &settings).map_err(|e| format!("{e:#}"))?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn clear_api_key() -> std::result::Result<(), String> {
-    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
-        .map_err(|e| format!("could not access OS keychain: {e}"))?;
-    match entry.delete_credential() {
-        Ok(_) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(format!("could not delete key from keychain: {e}")),
-    }
+pub fn clear_api_key<R: Runtime>(app: AppHandle<R>) -> std::result::Result<(), String> {
+    let mut settings = load(&app);
+    settings.api_key = None;
+    save(&app, &settings).map_err(|e| format!("{e:#}"))
 }
 
 #[tauri::command]
@@ -132,8 +133,8 @@ pub struct ConnectionTest {
 }
 
 #[tauri::command]
-pub async fn test_connection() -> ConnectionTest {
-    let api_key = match enhance::load_api_key() {
+pub async fn test_connection<R: Runtime>(app: AppHandle<R>) -> ConnectionTest {
+    let api_key = match enhance::load_api_key(&app) {
         Ok(k) => k,
         Err(e) => {
             return ConnectionTest {

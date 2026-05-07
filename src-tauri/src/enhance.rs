@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager, Runtime};
 
-const KEYRING_SERVICE: &str = "PromptForge";
-const KEYRING_ACCOUNT: &str = "groq_api_key";
+use crate::settings;
+
 const ENV_VAR: &str = "GROQ_API_KEY";
 const GROQ_API_URL: &str = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL: &str = "llama-3.3-70b-versatile";
@@ -43,7 +43,7 @@ struct ResponseMessage {
 }
 
 pub async fn enhance_prompt<R: Runtime>(app: &AppHandle<R>, input: &str) -> Result<String> {
-    let api_key = load_api_key()?;
+    let api_key = load_api_key(app)?;
     let system_prompt = load_meta_prompt(app)?;
 
     let body = ChatRequest {
@@ -96,8 +96,8 @@ pub async fn enhance_prompt<R: Runtime>(app: &AppHandle<R>, input: &str) -> Resu
         .ok_or_else(|| anyhow!("Groq response had no text content"))
 }
 
-pub(crate) fn load_api_key() -> Result<String> {
-    // Prefer env var (read from shell or loaded from .env at startup).
+pub(crate) fn load_api_key<R: Runtime>(app: &AppHandle<R>) -> Result<String> {
+    // 1) Env var (.env or shell-set) takes precedence — useful for dev.
     if let Ok(key) = std::env::var(ENV_VAR) {
         let trimmed = key.trim();
         if !trimmed.is_empty() {
@@ -105,16 +105,17 @@ pub(crate) fn load_api_key() -> Result<String> {
         }
     }
 
-    // Fall back to OS keychain (populated by Settings window in Phase 6).
-    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
-        .context("could not access OS keychain")?;
-    match entry.get_password() {
-        Ok(key) => Ok(key),
-        Err(keyring::Error::NoEntry) => Err(anyhow!(
-            "Groq API key not found. Add {ENV_VAR}=... to your .env file at the project root, or save a key via Settings (Phase 6)."
-        )),
-        Err(e) => Err(anyhow!("keychain error: {e}")),
+    // 2) Fall back to the API key saved in settings.json by the Settings window.
+    if let Some(key) = settings::load(app).api_key {
+        let trimmed = key.trim();
+        if !trimmed.is_empty() {
+            return Ok(trimmed.to_string());
+        }
     }
+
+    Err(anyhow!(
+        "Groq API key not found. Set {ENV_VAR} in .env, or paste a key in Settings (right-click the tray icon)."
+    ))
 }
 
 fn load_meta_prompt<R: Runtime>(app: &AppHandle<R>) -> Result<String> {
